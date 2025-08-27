@@ -20,6 +20,7 @@ set(SRC
 add_executable(${PROJECT_NAME} ${SRC})
 
 
+
 include(FetchContent)
 
 FetchContent_Declare(
@@ -37,9 +38,12 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(spdlog)
 
 find_package(OpenCL REQUIRED)
+find_package(OpenCV REQUIRED)
 target_link_libraries(${PROJECT_NAME} 
     PRIVATE OpenCL
+    PRIVATE ${OpenCV_LIBS}
     PRIVATE fmt::fmt
     PRIVATE spdlog::spdlog
 )
 
+target_link_directories(${PROJECT_NAME} PRIVATE ${OpenCV_LINK_DIRECTORIES})
