@@ -15,11 +15,19 @@ set(CMAKE_CXX_STANDARD 20)
 
 set(SRC
     src/main.cpp
+    src/server.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SRC})
+add_executable(client src/client.cpp)
 
 
+include(FindPkgConfig)
+pkg_check_modules(GSTREAMER gstreamer-1.0>=1.6 REQUIRED)
+include_directories(/usr/include/glib-2.0 /usr/lib/x86_64-linux-gnu/glib-2.0/include)
+include_directories(/usr/include/gstreamer-1.0/)
+link_directories(${GSTREAMER_LIBRARY_DIRS})
+include(CMakePrintHelpers)
 
 include(FetchContent)
 
@@ -44,6 +52,17 @@ target_link_libraries(${PROJECT_NAME}
     PRIVATE ${OpenCV_LIBS}
     PRIVATE fmt::fmt
     PRIVATE spdlog::spdlog
+    PRIVATE ${GSTREAMER_LIBRARIES}
 )
 
-target_link_directories(${PROJECT_NAME} PRIVATE ${OpenCV_LINK_DIRECTORIES})
+target_link_directories(${PROJECT_NAME} PRIVATE ${OpenCV_LINK_DIRECTORIES} ${GSTREAMER_LIBRARIES})
+
+target_link_libraries(client
+    PRIVATE OpenCL
+    PRIVATE ${OpenCV_LIBS}
+    PRIVATE fmt::fmt
+    PRIVATE spdlog::spdlog
+    PRIVATE ${GSTREAMER_LIBRARIES}
+)
+
+target_link_directories(client PRIVATE ${OpenCV_LINK_DIRECTORIES} ${GSTREAMER_LIBRARIES})
