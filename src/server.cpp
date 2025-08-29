@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <opencv2/opencv.hpp>
+#include <thread>
 
 #include "spdlog/spdlog.h"
 
@@ -42,20 +43,38 @@ Server::Server(uint32_t port) {
 }
 
 Server::~Server() {
+    for (int client : clients) {
+        close(client);
+    }
     close(sock);
+}
+
+void Server::client_accept() {
+    while (true) {
+        int client_sock = accept(sock, nullptr, nullptr);
+        if (client_sock < 0) {
+            spdlog::error("Error establishing connection to client.");
+            continue;
+        }
+        // TODO: add client ID/name as first message
+        spdlog::info("Established new connection!");
+
+        clients.push_back(client_sock);
+    }
 }
 
 void Server::serve() {
     if (!running) return;
-    int client_sock = accept(sock, nullptr, nullptr);
-    if (client_sock < 0) {
-        spdlog::error("Error establishing connection to client.");
-    }
+
+    std::thread accept_thread([&]() { client_accept(); });
+    accept_thread.detach();
+
     cv::VideoCapture capture(0);
     if (!capture.isOpened()) {
         spdlog::error("Failed to open camera");
         return;
     }
+
     cv::Mat frame;
     std::vector<unsigned char> buffer;
     while (running) {
@@ -66,8 +85,44 @@ void Server::serve() {
         cv::imencode(".jpg", frame, buffer);
 
         int size = buffer.size();
-        send(client_sock, &size, sizeof(size), 0);          // send size first
-        send(client_sock, buffer.data(), buffer.size(), 0); // then data
+        for (int i = clients.size() - 1; i >= 0; --i) {
+            int client_sock = clients[i];
+            if (check_disconnect(client_sock, size)) {
+                clients.erase(clients.begin() + i);
+                continue;
+            }
+            // otherwise no disconnect
+            send(client_sock, &size, sizeof(size), 0); // send size first
+            send(client_sock, buffer.data(), buffer.size(), 0); // then data
+        }
     }
-    close(client_sock);
+    spdlog::info("Closed server.");
+}
+
+void Server::shutdown() {
+    running = false;
+}
+
+bool Server::check_disconnect(int client, size_t size) {
+    char buf;
+    // MSG_PEEK treats data as unread
+    ssize_t bytes_received = recv(client, &buf, 1, MSG_PEEK | MSG_DONTWAIT);
+    // socket is closed by the peer
+    if (bytes_received == 0) {
+        // TODO: id's and names
+        spdlog::info("Disconnected from client.");
+        return true;
+    }
+    // no data available because client isn't sending anything
+    // obviously, but socket is still open
+    if (bytes_received == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+        return false;
+    }
+    // Other error occurred, potentially indicating a closed
+    // connection
+    if (bytes_received == -1) {
+        spdlog::error("Unexpected error occured.");
+        return true;
+    }
+    return true;
 }
