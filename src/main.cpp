@@ -3,11 +3,8 @@
 #include "network.hpp"
 #include "server.hpp"
 
-static volatile bool is_running = true;
-
 Server live_stream(PORT);
 void handler(int s) {
-    is_running = false;
     live_stream.shutdown();
 }
 

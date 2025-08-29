@@ -1,6 +1,9 @@
 #ifndef SERVER_HPP
 #define SERVER_HPP
 
+#include <poll.h>
+
+#include <atomic>
 #include <cstdint>
 #include <vector>
 
@@ -17,8 +20,8 @@ class Server {
     bool check_disconnect(int client, size_t size);
 
     int sock = 0;
-    bool running = true;
-    std::vector<int> clients;
+    std::atomic<bool> running = true;
+    std::vector<pollfd> fds;
 };
 
 #endif // SERVER_HPP

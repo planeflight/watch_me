@@ -1,13 +1,15 @@
 #include "server.hpp"
 
 #include <netinet/in.h>
+#include <poll.h>
+#include <spdlog/spdlog.h>
+#include <sys/poll.h>
 #include <sys/socket.h>
 
 #include <cstdint>
 #include <opencv2/opencv.hpp>
 #include <thread>
-
-#include "spdlog/spdlog.h"
+#include <vector>
 
 Server::Server(uint32_t port) {
     // SOCK_DGRAM: Datagram sockets are for UDP (different order/duplicate msgs)
@@ -43,23 +45,67 @@ Server::Server(uint32_t port) {
 }
 
 Server::~Server() {
-    for (int client : clients) {
-        close(client);
+    for (pollfd &fd : fds) {
+        close(fd.fd);
     }
     close(sock);
 }
 
 void Server::client_accept() {
-    while (true) {
-        int client_sock = accept(sock, nullptr, nullptr);
-        if (client_sock < 0) {
-            spdlog::error("Error establishing connection to client.");
-            continue;
-        }
-        // TODO: add client ID/name as first message
-        spdlog::info("Established new connection!");
+    // POLLIN	Alert me when data is ready to recv() on this socket.
+    // POLLOUT	Alert me when I can send() data to this socket without blocking.
+    // POLLHUP	Alert me when the remote closed the connection.
 
-        clients.push_back(client_sock);
+    // add our server socket
+    pollfd server_poll;
+    server_poll.fd = sock;
+    server_poll.events = POLLIN;
+    fds.push_back(server_poll);
+
+    // forces this thread to join later
+    while (running) {
+        // -1 blocks until event occurs
+        // no-block with ~100 ms in case server closes
+        if (poll(fds.data(), fds.size(), 100) < 0) {
+            spdlog::error("Poll error.");
+            break;
+        }
+        for (size_t i = 0; i < fds.size(); ++i) {
+            // if there's data to read/recv
+            if (fds[i].revents & POLLIN) {
+                // if server socket has data, there's connect/disconnect
+                if (fds[i].fd == sock) {
+                    sockaddr_in client;
+                    socklen_t client_len = sizeof(client);
+                    int client_fd =
+                        accept(sock, (sockaddr *)&client, &client_len);
+                    if (client_fd < 0) {
+                        spdlog::error(
+                            "Error establishing connection to client.");
+                        continue;
+                    }
+                    spdlog::info("Established connection with client {}.",
+                                 client_fd);
+                    pollfd client_poll;
+                    client_poll.fd = client_fd;
+                    client_poll.events = POLLIN;
+                    fds.push_back(client_poll);
+                }
+                // otherwise client is giving info
+                else {
+                    // TODO: add client ID/name as first message
+                    char *buffer;
+                    size_t BUF_SIZE = 1024;
+                    size_t n = recv(fds[i].fd, buffer, BUF_SIZE, 0);
+                    if (n <= 0) {
+                        spdlog::info("Disconnected client {}.", fds[i].fd);
+                        close(fds[i].fd);
+                        fds.erase(fds.begin() + i);
+                        i--; // adjust index
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -67,7 +113,6 @@ void Server::serve() {
     if (!running) return;
 
     std::thread accept_thread([&]() { client_accept(); });
-    accept_thread.detach();
 
     cv::VideoCapture capture(0);
     if (!capture.isOpened()) {
@@ -85,21 +130,18 @@ void Server::serve() {
         cv::imencode(".jpg", frame, buffer);
 
         int size = buffer.size();
-        for (int i = clients.size() - 1; i >= 0; --i) {
-            int client_sock = clients[i];
-            if (check_disconnect(client_sock, size)) {
-                clients.erase(clients.begin() + i);
-                continue;
-            }
-            // otherwise no disconnect
-            send(client_sock, &size, sizeof(size), 0); // send size first
-            send(client_sock, buffer.data(), buffer.size(), 0); // then data
+        for (int i = 1; i < fds.size(); ++i) {
+            send(fds[i].fd, &size, sizeof(size), 0);          // send size first
+            send(fds[i].fd, buffer.data(), buffer.size(), 0); // then data
         }
     }
-    spdlog::info("Closed server.");
+    if (accept_thread.joinable()) {
+        accept_thread.join();
+    }
 }
 
 void Server::shutdown() {
+    spdlog::info("Shutting down.");
     running = false;
 }
 
