@@ -19,7 +19,7 @@ set(SRC
 )
 
 add_executable(${PROJECT_NAME} ${SRC})
-add_executable(client src/client.cpp)
+add_executable(client src/client.cpp src/client_main.cpp)
 
 
 include(FindPkgConfig)
