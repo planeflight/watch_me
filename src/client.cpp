@@ -63,6 +63,7 @@ void Client::run() {
                 size_read += bytes;
                 // check if we read sizeof(int) = 4 bytes
                 if (size_read == sizeof(size)) {
+                    size = ntohl(size);
                     state = State::BUFFER;
                     buffer_msg.buffer.resize(size);
                     buffer_msg.bytes = 0;

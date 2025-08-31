@@ -130,6 +130,7 @@ void Server::serve() {
         cv::imencode(".jpg", frame, buffer);
 
         int size = buffer.size();
+        size = htonl(size);
         for (int i = 1; i < fds.size(); ++i) {
             send(fds[i].fd, &size, sizeof(size), 0);          // send size first
             send(fds[i].fd, buffer.data(), buffer.size(), 0); // then data
