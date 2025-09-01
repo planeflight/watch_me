@@ -119,6 +119,9 @@ void Server::serve() {
         spdlog::error("Failed to open camera");
         return;
     }
+    // try set frame width and height
+    capture.set(cv::CAP_PROP_FRAME_WIDTH, 640);
+    capture.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
 
     cv::Mat frame;
     std::vector<unsigned char> buffer;

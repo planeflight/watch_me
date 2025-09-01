@@ -1,5 +1,6 @@
 #include "client.hpp"
 
+#include <CL/cl.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <spdlog/spdlog.h>
@@ -7,12 +8,22 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include <chrono>
+#include <fstream>
 #include <opencv2/opencv.hpp>
-#include <thread>
 #include <vector>
 
 #include "network.hpp"
+
+// TODO: no hardcoding
+size_t w = 640, h = 480;
+
+std::string load_file(const std::string &file_name) {
+    std::ifstream t(file_name);
+    std::stringstream buffer;
+    buffer << t.rdbuf();
+    std::string source = buffer.str();
+    return source;
+}
 
 Client::Client(int port) {
     sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -25,7 +36,19 @@ Client::Client(int port) {
         spdlog::error("Error opening client connection.");
         return;
     }
-    // spdlog::set_level(spdlog::level::debug); // print debug messages
+    // opencl
+    std::string file_contents = load_file("./res/cl/effects.cl");
+    gpu_client.program = gpu_client.create_program(file_contents);
+    kernel = cl::Kernel(gpu_client.program, "grayscale");
+    cl::ImageFormat format{CL_RGBA, CL_UNORM_INT8};
+    // TODO: fix hardcoded w/h
+    image = cl::Image2D(gpu_client.context, CL_MEM_READ_ONLY, format, w, h);
+
+    prev = cl::Image2D(gpu_client.context, CL_MEM_READ_ONLY, format, w, h);
+    image_out =
+        cl::Image2D(gpu_client.context, CL_MEM_WRITE_ONLY, format, w, h);
+
+    queue = cl::CommandQueue(gpu_client.context, gpu_client.device);
 }
 
 void Client::run() {
@@ -72,7 +95,6 @@ void Client::run() {
                 unsigned char *offset =
                     buffer_msg.buffer.data() + buffer_msg.bytes;
                 int bytes = recv(sock, offset, size - buffer_msg.bytes, 0);
-                // TODO: handle server down, errors, etc
                 if (bytes == 0) {
                     spdlog::info("Server shut down.");
                     break;
@@ -86,16 +108,49 @@ void Client::run() {
                     state = State::SIZE;
                     size_read = 0;
                     img = cv::imdecode(buffer_msg.buffer, cv::IMREAD_COLOR);
+                    cv::cvtColor(img, img, cv::COLOR_RGB2RGBA);
+                    render(img);
                 }
             }
         }
 
         // only for first frames when no image has been sent yet
-        if (img.empty()) continue;
+        if (!img.empty()) cv::imshow("Client", img);
 
-        cv::imshow("Client", img);
         if (cv::waitKey(1) == 27) break; // ESC to quit
     }
     spdlog::info("Client shutting down.");
     close(sock);
+}
+
+void Client::render(cv::Mat &img) {
+    cl::NDRange global_size{w, h};
+    cl::array<size_t, 3> origin = {0, 0, 0};
+    cl::array<size_t, 3> region = {w, h, 1};
+
+    // TODO: change to non-blocking and double buffering
+    queue.enqueueWriteImage(image,
+                            CL_TRUE, // blocking write
+                            origin,
+                            region,
+                            img.step,
+                            w * 4, // row pitch
+                            img.data);
+
+    kernel.setArg(0, image);
+    kernel.setArg(1, image_out);
+    kernel.setArg(2, prev);
+
+    queue.enqueueNDRangeKernel(
+        kernel, cl::NullRange, global_size, cl::NullRange);
+
+    // read results
+    std::vector<uchar> output(w * h * 4);
+
+    queue.enqueueReadImage(
+        image_out, CL_TRUE, origin, region, 0, 0, output.data());
+
+    img = cv::Mat(h, w, CV_8UC4, output.data()).clone(); // wrap without copy
+
+    queue.enqueueCopyImage(image, prev, origin, origin, region);
 }
