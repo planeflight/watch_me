@@ -11,7 +11,7 @@ A networked live streaming application with motion detection.
 
 ## Building
 
-Ensure CMake is installed. Then, install OpenCL drivers and OpenCV. Run:
+Ensure CMake is installed. Then, install OpenCL drivers and OpenCV. Modify build.sh to the appropriate Debug/Release:
 
 ```
 ./build.sh
