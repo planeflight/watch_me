@@ -14,9 +14,6 @@
 
 #include "network.hpp"
 
-// TODO: no hardcoding
-size_t w = 640, h = 480;
-
 std::string load_file(const std::string &file_name) {
     std::ifstream t(file_name);
     std::stringstream buffer;
@@ -36,17 +33,19 @@ Client::Client(int port) {
         spdlog::error("Error opening client connection.");
         return;
     }
+    spdlog::info("Successfully established client connection.");
     // opencl
     std::string file_contents = load_file("./res/cl/effects.cl");
     gpu_client.program = gpu_client.create_program(file_contents);
     kernel = cl::Kernel(gpu_client.program, "grayscale");
     cl::ImageFormat format{CL_RGBA, CL_UNORM_INT8};
-    // TODO: fix hardcoded w/h
-    image = cl::Image2D(gpu_client.context, CL_MEM_READ_ONLY, format, w, h);
+    image = cl::Image2D(
+        gpu_client.context, CL_MEM_READ_ONLY, format, WIDTH, HEIGHT);
 
-    prev = cl::Image2D(gpu_client.context, CL_MEM_READ_ONLY, format, w, h);
-    image_out =
-        cl::Image2D(gpu_client.context, CL_MEM_WRITE_ONLY, format, w, h);
+    prev = cl::Image2D(
+        gpu_client.context, CL_MEM_READ_ONLY, format, WIDTH, HEIGHT);
+    image_out = cl::Image2D(
+        gpu_client.context, CL_MEM_WRITE_ONLY, format, WIDTH, HEIGHT);
 
     queue = cl::CommandQueue(gpu_client.context, gpu_client.device);
 }
@@ -124,17 +123,16 @@ void Client::run() {
 }
 
 void Client::render(cv::Mat &img) {
-    cl::NDRange global_size{w, h};
+    cl::NDRange global_size{WIDTH, HEIGHT};
     cl::array<size_t, 3> origin = {0, 0, 0};
-    cl::array<size_t, 3> region = {w, h, 1};
+    cl::array<size_t, 3> region = {WIDTH, HEIGHT, 1};
 
-    // TODO: change to non-blocking and double buffering
     queue.enqueueWriteImage(image,
-                            CL_TRUE, // blocking write
+                            CL_FALSE, // blocking write
                             origin,
                             region,
                             img.step,
-                            w * 4, // row pitch
+                            WIDTH * 4, // row pitch
                             img.data);
 
     kernel.setArg(0, image);
@@ -145,12 +143,13 @@ void Client::render(cv::Mat &img) {
         kernel, cl::NullRange, global_size, cl::NullRange);
 
     // read results
-    std::vector<uchar> output(w * h * 4);
+    std::vector<uchar> output(WIDTH * HEIGHT * 4);
 
     queue.enqueueReadImage(
         image_out, CL_TRUE, origin, region, 0, 0, output.data());
 
-    img = cv::Mat(h, w, CV_8UC4, output.data()).clone(); // wrap without copy
+    img = cv::Mat(HEIGHT, WIDTH, CV_8UC4, output.data())
+              .clone(); // wrap without copy
 
     queue.enqueueCopyImage(image, prev, origin, origin, region);
 }

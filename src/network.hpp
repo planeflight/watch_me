@@ -11,4 +11,6 @@ struct Message {
     std::vector<unsigned char> buffer;
 };
 
+constexpr size_t WIDTH = 1280, HEIGHT = 720;
+
 #endif // NETWORK_HPP

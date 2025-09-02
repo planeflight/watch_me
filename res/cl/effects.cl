@@ -15,9 +15,12 @@ void kernel grayscale(read_only image2d_t src, write_only image2d_t dest, read_o
     float4 pixel = read_imagef(src, sampler, coord);
     float4 pixel_prev = read_imagef(prev, sampler, coord);
     float d = distance_sq(pixel, pixel_prev);
-    if (d > 0.1 * 0.1) {
-        write_imagef(dest, coord, (float4)(1.0f, 1.0f, 1.0f, 1.0f));
+    const float threshold = 0.15;
+
+    // if motion
+    if (d > threshold * threshold) {
+        write_imagef(dest, coord, (float4)(0.0f, 0.0f, 1.0f, 1.0f));
     } else {
-        write_imagef(dest, coord, (float4)(0.0f, 0.0f, 0.0f, 1.0f));
+        write_imagef(dest, coord, pixel);
     }
 }

@@ -3,7 +3,7 @@
 
 #define CL_HPP_ENABLE_EXCEPTIONS
 #include <CL/opencl.hpp>
-#include <opencv2/core/mat.hpp>
+#include <opencv2/opencv.hpp>
 
 #include "gpu.hpp"
 

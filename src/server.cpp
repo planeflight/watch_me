@@ -11,6 +11,8 @@
 #include <thread>
 #include <vector>
 
+#include "network.hpp"
+
 Server::Server(uint32_t port) {
     // SOCK_DGRAM: Datagram sockets are for UDP (different order/duplicate msgs)
     // SOCK_STREAM: TCP sequenced, constant, 2 way stream of data
@@ -93,7 +95,6 @@ void Server::client_accept() {
                 }
                 // otherwise client is giving info
                 else {
-                    // TODO: add client ID/name as first message
                     char *buffer;
                     size_t BUF_SIZE = 1024;
                     size_t n = recv(fds[i].fd, buffer, BUF_SIZE, 0);
@@ -120,8 +121,8 @@ void Server::serve() {
         return;
     }
     // try set frame width and height
-    capture.set(cv::CAP_PROP_FRAME_WIDTH, 640);
-    capture.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
+    capture.set(cv::CAP_PROP_FRAME_WIDTH, WIDTH);
+    capture.set(cv::CAP_PROP_FRAME_HEIGHT, HEIGHT);
 
     cv::Mat frame;
     std::vector<unsigned char> buffer;
@@ -155,7 +156,6 @@ bool Server::check_disconnect(int client, size_t size) {
     ssize_t bytes_received = recv(client, &buf, 1, MSG_PEEK | MSG_DONTWAIT);
     // socket is closed by the peer
     if (bytes_received == 0) {
-        // TODO: id's and names
         spdlog::info("Disconnected from client.");
         return true;
     }
