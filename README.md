@@ -23,7 +23,7 @@ Ensure CMake is installed. Then, install OpenCL drivers and OpenCV. Run:
 ./build/watch_me
 ```
 
-Gracefully exit with <CTRL-C> since SIGINT is handled.
+Gracefully exit with CTRL-C since SIGINT is handled.
 
 ### Running the Client
 
@@ -31,7 +31,7 @@ Gracefully exit with <CTRL-C> since SIGINT is handled.
 ./build/client
 ```
 
-Gracefully exit by hitting <ESC>.
+Gracefully exit with ESC.
 
 ## Resources
 
