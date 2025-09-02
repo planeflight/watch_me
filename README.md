@@ -1,11 +1,37 @@
 # Watch Me
 
-A networked live streaming application with OpenCL special effects.
+A networked live streaming application with motion detection.
 
 ## Features
 
 - Non-blocking server to clients system
-- Realtime, live OpenCL video processing effects
+- Realtime, live GPU accelerated OpenCL motion detection
+- OpenCV camera and window managing
+- Renders the motion in red over the video capture
+
+## Building
+
+Ensure CMake is installed. Then, install OpenCL drivers and OpenCV. Run:
+
+```
+./build.sh
+```
+
+### Running the Server
+
+```
+./build/watch_me
+```
+
+Gracefully exit with <CTRL-C> since SIGINT is handled.
+
+### Running the Client
+
+```
+./build/client
+```
+
+Gracefully exit by hitting <ESC>.
 
 ## Resources
 

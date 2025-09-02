@@ -23,9 +23,4 @@ class Client {
     cl::CommandQueue queue;
 };
 
-// OpenCL -> grayscale/subtraction/background saving
-// apply thresholding
-// build contours
-// render result/call alarm
-
 #endif // CLIENT_HPP
